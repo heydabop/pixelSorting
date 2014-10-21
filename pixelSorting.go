@@ -6,6 +6,7 @@ import (
 	_ "image/jpeg"
 	"image/png"
 	"math"
+	"runtime"
 	"sort"
 	"strconv"
 	"log"
@@ -57,6 +58,7 @@ func (img RGBASlice) Swap(i, j int) {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	if len(os.Args) < 3 || len(os.Args) > 4 {
 		log.Fatalln("Usage:", os.Args[0], " <src img> <dest img> [<tolerance>]")
 	}
@@ -71,6 +73,7 @@ func main() {
 	if err != nil {
 		log.Panicln(err)
 	}
+	fmt.Println(tol)
 	//load image from file
 	//imgFile, err := os.Open(`D:\Users\Ross\Dropbox\Camera Uploads\2014-07-19 11.02.20.jpg`)
 	imgFile, err := os.Open(imgSrc)
@@ -94,7 +97,7 @@ func main() {
 
 	for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
 		imgSlice := RGBASlice{newRGBA, x}
-		sort.Sort(imgSlice)
+		go sort.Sort(imgSlice)
 	}
 
 	//save RGBA to file
