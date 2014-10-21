@@ -57,6 +57,8 @@ func (img RGBASlice) Swap(i, j int) {
 	img.img.Set(img.X, j, temp)
 }
 
+//func FindAlikeNeighbor(x, y, xrange, yrange int, img image.RGBA) (int, int) {
+
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	if len(os.Args) < 3 || len(os.Args) > 4 {
