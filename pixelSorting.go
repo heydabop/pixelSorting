@@ -57,25 +57,60 @@ func (img RGBASlice) Swap(i, j int) {
 	img.img.Set(img.X, j, temp)
 }
 
-//func FindAlikeNeighbor(x, y, xrange, yrange int, img image.RGBA) (int, int) {
+func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA) (int, int) {
+	r, g, b, a := img.At(x, y).RGBA()
+	nearX, nearY, diff := 0, 0, math.MaxFloat64
+	for i := 0; i < xrange; i++ {
+		for j := 0; j < yrange; j++ {
+			//if Point{i, j}.In(img.Rect) {
+			nr, ng, nb, na := img.At(x, y).RGBA()
+			newDiff := (math.Abs(float64(nr - r)) / (float64(nr + r)/2) +
+				math.Abs(float64(ng - g)) / (float64(ng + g)/2) +
+				math.Abs(float64(nb - b)) / (float64(nb + b)/2) +
+				math.Abs(float64(na - a)) / (float64(na + a)/2)) / float64(4)
+			if newDiff < diff {
+				nearX = i
+				nearY = j
+			}
+		}
+	}
+	return nearX, nearY
+}
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	if len(os.Args) < 3 || len(os.Args) > 4 {
-		log.Fatalln("Usage:", os.Args[0], " <src img> <dest img> [<tolerance>]")
+	if len(os.Args) < 4 || len(os.Args) > 5 {
+		log.Fatalln("Usage:", os.Args[0], " <src img> <dest img> <sort type> [<tolerance/range>]")
 	}
 	imgSrc := os.Args[1]
 	imgDest := os.Args[2]
 	fmt.Println(imgSrc)
 	fmt.Println(imgDest)
 	var err error
-	if len(os.Args) == 4 {
-		tol, err = strconv.ParseFloat(os.Args[3], 64)
+	var sort_type int64
+	xyrange := 10
+	if len(os.Args) >= 4 {
+		sort_type, err = strconv.ParseInt(os.Args[3], 0, 10)
 	}
 	if err != nil {
 		log.Panicln(err)
 	}
+	if len(os.Args) == 5 {
+		if sort_type == 0 {
+			tol, err = strconv.ParseFloat(os.Args[4], 64)
+		} else if sort_type == 1 {
+			var xy64 int64
+			xy64, err = strconv.ParseInt(os.Args[4], 0, 10)
+			if err != nil {
+				log.Panicln(err)
+			}
+			xyrange = int(xy64)
+		}
+	}
+	fmt.Println(sort_type)
 	fmt.Println(tol)
+	fmt.Println(xyrange)
+
 	//load image from file
 	//imgFile, err := os.Open(`D:\Users\Ross\Dropbox\Camera Uploads\2014-07-19 11.02.20.jpg`)
 	imgFile, err := os.Open(imgSrc)
@@ -97,9 +132,24 @@ func main() {
 		}
 	}
 
-	for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
-		imgSlice := RGBASlice{newRGBA, x}
-		go sort.Sort(imgSlice)
+	switch sort_type {
+	case 0:
+		for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
+			imgSlice := RGBASlice{newRGBA, x}
+			go sort.Sort(imgSlice)
+		}
+		break
+	case 1:
+		for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
+			for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
+				newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA)
+				swapX := x + int((float64(newX - x)/math.Abs(float64(newX - x)))+0.5)
+				swapY := y + int((float64(newY - y)/math.Abs(float64(newY - y)))+0.5)
+				ctemp := newRGBA.At(swapX, swapY)
+				newRGBA.Set(swapX, swapY, newRGBA.At(x, y))
+				newRGBA.Set(x, y, ctemp)
+			}
+		}
 	}
 
 	//save RGBA to file
