@@ -57,15 +57,17 @@ func (img RGBASlice) Swap(i, j int) {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		log.Fatalln("Not enough cmd line arguments")
+	if len(os.Args) < 3 || len(os.Args) > 4 {
+		log.Fatalln("Usage:", os.Args[0], " <src img> <dest img> [<tolerance>]")
 	}
 	imgSrc := os.Args[1]
 	imgDest := os.Args[2]
 	fmt.Println(imgSrc)
 	fmt.Println(imgDest)
 	var err error
-	tol, err = strconv.ParseFloat(os.Args[3], 64)
+	if len(os.Args) == 4 {
+		tol, err = strconv.ParseFloat(os.Args[3], 64)
+	}
 	if err != nil {
 		log.Panicln(err)
 	}
