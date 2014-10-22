@@ -7,11 +7,13 @@ import (
 	"image/png"
 	"log"
 	"math"
+	"math/rand"
 	"os"
 	"runtime"
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type RGBASlice struct {
@@ -108,6 +110,7 @@ func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutex *sync.RW
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	if len(os.Args) < 4 || len(os.Args) > 6 {
 		log.Fatalln("Usage:", os.Args[0], " <src img> <dest img> <sort type> [<tolerance/range>] [<iterations>]")
@@ -183,11 +186,15 @@ func main() {
 		var wg sync.WaitGroup
 		var mutex sync.RWMutex
 		for i := 0; i < iterations; i++ {
-			wg.Add(newRGBA.Bounds().Max.X - newRGBA.Bounds().Min.X)
-			for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
+			wg.Add(newRGBA.Bounds().Max.X)
+			xVals := rand.Perm(newRGBA.Bounds().Max.X)
+			for i := 0; i < len(xVals); i++ {
+				x := xVals[i]
 				go func(newRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutex *sync.RWMutex) {
 					defer wg.Done()
-					for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
+					yVals := rand.Perm(newRGBA.Bounds().Max.Y)
+					for j := 0; j < len(yVals); j++ {
+						y := yVals[j]
 						newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA, mutex)
 						m := math.Abs(float64(newY-y)) / math.Abs(float64(newX-x))
 						var swapX, swapY int
