@@ -8,6 +8,7 @@ import (
 	"math"
 	"runtime"
 	"sort"
+	"sync"
 	"strconv"
 	"log"
 	"os"
@@ -163,38 +164,50 @@ func main() {
 		}
 		break
 	case 1:
+		cloneRGBA := image.NewRGBA(image.Rectangle{newRGBA.Bounds().Min, newRGBA.Bounds().Max})
+		//*cloneRGBA = *newRGBA
+		var wg sync.WaitGroup
+		var mutex sync.Mutex
+		wg.Add(newRGBA.Bounds().Max.X - newRGBA.Bounds().Min.X)
 		for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
-			for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
-				newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA)
-				m := math.Abs(float64(newY - y))/math.Abs(float64(newX - x))
-				var swapX, swapY int
-				if newX == x && newY == y {
-					continue
-				} else if m > 1 {
-					if newY < y {
+			go func(newRGBA, cloneRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutex *sync.Mutex) {
+				defer wg.Done()
+				for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
+					newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA)
+					m := math.Abs(float64(newY - y))/math.Abs(float64(newX - x))
+					var swapX, swapY int
+					if newX == x && newY == y {
 						swapX = x
-						swapY = y - 1
-					} else {
-						swapX = x
-						swapY = y + 1
-					}
-				} else {
-					if newX < x {
-						swapX = x -1
 						swapY = y
+					} else if m > 1 {
+						if newY < y {
+							swapX = x
+							swapY = y - 1
+						} else {
+							swapX = x
+							swapY = y + 1
+						}
 					} else {
-						swapX = x + 1
-						swapY = y
+						if newX < x {
+							swapX = x -1
+							swapY = y
+						} else {
+							swapX = x + 1
+							swapY = y
+						}
 					}
+					//fmt.Println(x, y, newRGBA.At(x, y), newX, newY, newRGBA.At(newX, newY),  swapX, swapY)
+					//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y))
+					mutex.Lock()
+					cloneRGBA.Set(x, y, newRGBA.At(swapX, swapY))
+					//fmt.Println(x, y, swapX, swapY)
+					mutex.Unlock()
+					//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y), "\n")
 				}
-				//fmt.Println(x, y, newRGBA.At(x, y), newX, newY, newRGBA.At(newX, newY),  swapX, swapY)
-				//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y))
-				ctemp := newRGBA.At(swapX, swapY)
-				newRGBA.Set(swapX, swapY, newRGBA.At(x, y))
-				newRGBA.Set(x, y, ctemp)
-				//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y), "\n")
-			}
+			} (newRGBA, cloneRGBA, x, &wg, &mutex)
 		}
+		wg.Wait()
+		*newRGBA = *cloneRGBA
 	}
 
 	//save RGBA to file
