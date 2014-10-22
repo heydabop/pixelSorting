@@ -61,13 +61,17 @@ func (img RGBASlice) Swap(i, j int) {
 	img.img.Set(img.X, j, temp)
 }
 
-func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA) (int, int) {
+func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutex *sync.RWMutex) (int, int) {
+	mutex.RLock()
 	r, g, b, a := img.At(x, y).RGBA()
+	mutex.RUnlock()
 	nearX, nearY, diff := 0, 0, int(math.MaxInt32)
 	for i := x; i < x + xrange; i++ {
 		for j := y; j < y + yrange; j++ {
 			if (image.Point{x, y}.In(img.Rect)) {
+				mutex.RLock()
 				nr, ng, nb, na := img.At(i, j).RGBA()
+				mutex.RUnlock()
 				newDiff := int(math.Abs(float64(nr - r)) + math.Abs(float64(nb - b)) +
 					math.Abs(float64(ng - g)) + math.Abs(float64(na - a)))
 				if newDiff < diff {
@@ -84,7 +88,9 @@ func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA) (int, int) {
 	for i := x-1; i > x - xrange; i-- {
 		for j := y-1; j > y - yrange; j-- {
 			if (image.Point{i, j}.In(img.Rect)) {
+				mutex.RLock()
 				nr, ng, nb, na := img.At(i, j).RGBA()
+				mutex.RUnlock()
 				newDiff := int(math.Abs(float64(nr - r)) + math.Abs(float64(nb - b)) +
 					math.Abs(float64(ng - g)) + math.Abs(float64(na - a)))
 				if newDiff < diff {
@@ -164,50 +170,51 @@ func main() {
 		}
 		break
 	case 1:
-		cloneRGBA := image.NewRGBA(image.Rectangle{newRGBA.Bounds().Min, newRGBA.Bounds().Max})
-		//*cloneRGBA = *newRGBA
 		var wg sync.WaitGroup
-		var mutex sync.Mutex
-		wg.Add(newRGBA.Bounds().Max.X - newRGBA.Bounds().Min.X)
-		for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
-			go func(newRGBA, cloneRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutex *sync.Mutex) {
-				defer wg.Done()
-				for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
-					newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA)
-					m := math.Abs(float64(newY - y))/math.Abs(float64(newX - x))
-					var swapX, swapY int
-					if newX == x && newY == y {
-						swapX = x
-						swapY = y
-					} else if m > 1 {
-						if newY < y {
+		var mutex sync.RWMutex
+		for i := 0; i < 10; i++{
+			wg.Add(newRGBA.Bounds().Max.X - newRGBA.Bounds().Min.X)
+			for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
+				go func(newRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutex *sync.RWMutex) {
+					defer wg.Done()
+					for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
+						newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA, mutex)
+						m := math.Abs(float64(newY - y))/math.Abs(float64(newX - x))
+						var swapX, swapY int
+						if newX == x && newY == y {
 							swapX = x
-							swapY = y - 1
-						} else {
-							swapX = x
-							swapY = y + 1
-						}
-					} else {
-						if newX < x {
-							swapX = x -1
 							swapY = y
+						} else if m > 1 {
+							if newY < y {
+								swapX = x
+								swapY = y - 1
+							} else {
+								swapX = x
+								swapY = y + 1
+							}
 						} else {
-							swapX = x + 1
-							swapY = y
+							if newX < x {
+								swapX = x -1
+								swapY = y
+							} else {
+								swapX = x + 1
+								swapY = y
+							}
 						}
+						//fmt.Println(x, y, newRGBA.At(x, y), newX, newY, newRGBA.At(newX, newY),  swapX, swapY)
+						//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y))
+						mutex.Lock()
+						ctemp := newRGBA.At(x, y)
+						newRGBA.Set(x, y, newRGBA.At(swapX, swapY))
+						newRGBA.Set(swapX, swapY, ctemp)
+						mutex.Unlock()
+						//fmt.Println(x, y, swapX, swapY)
+						//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y), "\n")
 					}
-					//fmt.Println(x, y, newRGBA.At(x, y), newX, newY, newRGBA.At(newX, newY),  swapX, swapY)
-					//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y))
-					mutex.Lock()
-					cloneRGBA.Set(x, y, newRGBA.At(swapX, swapY))
-					//fmt.Println(x, y, swapX, swapY)
-					mutex.Unlock()
-					//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y), "\n")
-				}
-			} (newRGBA, cloneRGBA, x, &wg, &mutex)
+				} (newRGBA, x, &wg, &mutex)
+			}
+			wg.Wait()
 		}
-		wg.Wait()
-		*newRGBA = *cloneRGBA
 	}
 
 	//save RGBA to file
