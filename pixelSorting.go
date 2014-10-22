@@ -137,6 +137,7 @@ func main() {
 			xyrange = int(xy64)
 		}
 	}
+	iterations := 10
 	fmt.Println(sort_type)
 	fmt.Println(tol)
 	fmt.Println(xyrange)
@@ -172,7 +173,7 @@ func main() {
 	case 1:
 		var wg sync.WaitGroup
 		var mutex sync.RWMutex
-		for i := 0; i < 10; i++ {
+		for i := 0; i < iterations; i++ {
 			wg.Add(newRGBA.Bounds().Max.X - newRGBA.Bounds().Min.X)
 			for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
 				go func(newRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutex *sync.RWMutex) {
