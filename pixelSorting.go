@@ -215,7 +215,19 @@ func main() {
 				}(newRGBA, x, &wg, &mutex)
 			}
 			wg.Wait()
+			switch (i+1) % 10 {
+			case 0:
+				fmt.Print("X")
+				break
+			case 5:
+				fmt.Print("|")
+				break
+			case default:
+				fmt.Print(".")
+				break
+			}
 		}
+		fmt.Println()
 	}
 
 	//save RGBA to file
