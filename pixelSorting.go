@@ -18,7 +18,10 @@ type RGBASlice struct{
 	X int
 }
 
-var tol = 0.1
+var (
+	tol = 0.1
+	noise = 50
+)
 
 func (img RGBASlice) Len() int {
 	pr, pg, pb, pa := img.img.At(img.X, img.img.Bounds().Min.Y).RGBA()
@@ -59,18 +62,38 @@ func (img RGBASlice) Swap(i, j int) {
 
 func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA) (int, int) {
 	r, g, b, a := img.At(x, y).RGBA()
-	nearX, nearY, diff := 0, 0, math.MaxFloat64
-	for i := 0; i < xrange; i++ {
-		for j := 0; j < yrange; j++ {
-			//if Point{i, j}.In(img.Rect) {
-			nr, ng, nb, na := img.At(x, y).RGBA()
-			newDiff := (math.Abs(float64(nr - r)) / (float64(nr + r)/2) +
-				math.Abs(float64(ng - g)) / (float64(ng + g)/2) +
-				math.Abs(float64(nb - b)) / (float64(nb + b)/2) +
-				math.Abs(float64(na - a)) / (float64(na + a)/2)) / float64(4)
-			if newDiff < diff {
-				nearX = i
-				nearY = j
+	nearX, nearY, diff := 0, 0, int(math.MaxInt32)
+	for i := x; i < x + xrange; i++ {
+		for j := y; j < y + yrange; j++ {
+			if (image.Point{x, y}.In(img.Rect)) {
+				nr, ng, nb, na := img.At(i, j).RGBA()
+				newDiff := int(math.Abs(float64(nr - r)) + math.Abs(float64(nb - b)) +
+					math.Abs(float64(ng - g)) + math.Abs(float64(na - a)))
+				if newDiff < diff {
+					nearX = i
+					nearY = j
+					diff = newDiff
+					if i == x && j == y {
+						diff += noise
+					}
+				}
+			}
+		}
+	}
+	for i := x-1; i > x - xrange; i-- {
+		for j := y-1; j > y - yrange; j-- {
+			if (image.Point{i, j}.In(img.Rect)) {
+				nr, ng, nb, na := img.At(i, j).RGBA()
+				newDiff := int(math.Abs(float64(nr - r)) + math.Abs(float64(nb - b)) +
+					math.Abs(float64(ng - g)) + math.Abs(float64(na - a)))
+				if newDiff < diff {
+					nearX = i
+					nearY = j
+					diff = newDiff
+					if i == x && j == y {
+						diff += noise
+					}
+				}
 			}
 		}
 	}
@@ -143,11 +166,33 @@ func main() {
 		for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
 			for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
 				newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA)
-				swapX := x + int((float64(newX - x)/math.Abs(float64(newX - x)))+0.5)
-				swapY := y + int((float64(newY - y)/math.Abs(float64(newY - y)))+0.5)
+				m := math.Abs(float64(newY - y))/math.Abs(float64(newX - x))
+				var swapX, swapY int
+				if newX == x && newY == y {
+					continue
+				} else if m > 1 {
+					if newY < y {
+						swapX = x
+						swapY = y - 1
+					} else {
+						swapX = x
+						swapY = y + 1
+					}
+				} else {
+					if newX < x {
+						swapX = x -1
+						swapY = y
+					} else {
+						swapX = x + 1
+						swapY = y
+					}
+				}
+				//fmt.Println(x, y, newRGBA.At(x, y), newX, newY, newRGBA.At(newX, newY),  swapX, swapY)
+				//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y))
 				ctemp := newRGBA.At(swapX, swapY)
 				newRGBA.Set(swapX, swapY, newRGBA.At(x, y))
 				newRGBA.Set(x, y, ctemp)
+				//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y), "\n")
 			}
 		}
 	}
