@@ -246,7 +246,7 @@ func main() {
 				}(newRGBA, x, &wg, mutexes)
 			}
 			wg.Wait()
-			switch (i+1) % 10 {
+			switch (i + 1) % 10 {
 			case 0:
 				fmt.Print("X")
 				break
