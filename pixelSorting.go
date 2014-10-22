@@ -63,17 +63,17 @@ func (img RGBASlice) Swap(i, j int) {
 	img.img.Set(img.X, j, temp)
 }
 
-func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutex *sync.RWMutex) (int, int) {
-	mutex.RLock()
+func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutexes [][]sync.RWMutex) (int, int) {
+	mutexes[x][y].RLock()
 	r, g, b, a := img.At(x, y).RGBA()
-	mutex.RUnlock()
+	mutexes[x][y].RUnlock()
 	nearX, nearY, diff := 0, 0, int(math.MaxInt32)
-	for i := x; i < x+xrange; i++ {
-		for j := y; j < y+yrange; j++ {
+	for i := x; i < x+xrange && i < len(mutexes); i++ {
+		for j := y; j < y+yrange && j < len(mutexes[i]); j++ {
 			if (image.Point{x, y}.In(img.Rect)) {
-				mutex.RLock()
+				mutexes[i][j].RLock()
 				nr, ng, nb, na := img.At(i, j).RGBA()
-				mutex.RUnlock()
+				mutexes[i][j].RUnlock()
 				newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
 					math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
 				if newDiff < diff {
@@ -87,12 +87,12 @@ func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutex *sync.RW
 			}
 		}
 	}
-	for i := x - 1; i > x-xrange; i-- {
-		for j := y - 1; j > y-yrange; j-- {
+	for i := x - 1; i > x-xrange && i >= 0; i-- {
+		for j := y - 1; j > y-yrange && j >= 0; j-- {
 			if (image.Point{i, j}.In(img.Rect)) {
-				mutex.RLock()
+				mutexes[i][j].RLock()
 				nr, ng, nb, na := img.At(i, j).RGBA()
-				mutex.RUnlock()
+				mutexes[i][j].RUnlock()
 				newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
 					math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
 				if newDiff < diff {
@@ -184,18 +184,21 @@ func main() {
 		break
 	case 1:
 		var wg sync.WaitGroup
-		var mutex sync.RWMutex
+		mutexes := make([][]sync.RWMutex, newRGBA.Bounds().Max.X)
+		for i := 0; i < len(mutexes); i++ {
+			mutexes[i] = make([]sync.RWMutex, newRGBA.Bounds().Max.Y)
+		}
 		for i := 0; i < iterations; i++ {
 			wg.Add(newRGBA.Bounds().Max.X)
 			xVals := rand.Perm(newRGBA.Bounds().Max.X)
 			for i := 0; i < len(xVals); i++ {
 				x := xVals[i]
-				go func(newRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutex *sync.RWMutex) {
+				go func(newRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutexes [][]sync.RWMutex) {
 					defer wg.Done()
 					yVals := rand.Perm(newRGBA.Bounds().Max.Y)
 					for j := 0; j < len(yVals); j++ {
 						y := yVals[j]
-						newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA, mutex)
+						newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA, mutexes)
 						m := math.Abs(float64(newY-y)) / math.Abs(float64(newX-x))
 						var swapX, swapY int
 						if newX == x && newY == y {
@@ -220,15 +223,27 @@ func main() {
 						}
 						//fmt.Println(x, y, newRGBA.At(x, y), newX, newY, newRGBA.At(newX, newY),  swapX, swapY)
 						//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y))
-						mutex.Lock()
-						ctemp := newRGBA.At(x, y)
-						newRGBA.Set(x, y, newRGBA.At(swapX, swapY))
-						newRGBA.Set(swapX, swapY, ctemp)
-						mutex.Unlock()
+
+						//this segment doesn't really *need* to atomic...
+						mutexes[x][y].RLock()
+						c1 := newRGBA.At(x, y)
+						mutexes[x][y].RUnlock()
+
+						mutexes[swapX][swapY].RLock()
+						c2 := newRGBA.At(swapX, swapY)
+						mutexes[swapX][swapY].RUnlock()
+
+						mutexes[x][y].Lock()
+						newRGBA.Set(x, y, c2)
+						mutexes[x][y].Unlock()
+
+						mutexes[swapX][swapY].Lock()
+						newRGBA.Set(swapX, swapY, c1)
+						mutexes[swapX][swapY].Unlock()
 						//fmt.Println(x, y, swapX, swapY)
 						//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y), "\n")
 					}
-				}(newRGBA, x, &wg, &mutex)
+				}(newRGBA, x, &wg, mutexes)
 			}
 			wg.Wait()
 			switch (i+1) % 10 {
