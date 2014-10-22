@@ -109,8 +109,8 @@ func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutex *sync.RW
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	if len(os.Args) < 4 || len(os.Args) > 5 {
-		log.Fatalln("Usage:", os.Args[0], " <src img> <dest img> <sort type> [<tolerance/range>]")
+	if len(os.Args) < 4 || len(os.Args) > 6 {
+		log.Fatalln("Usage:", os.Args[0], " <src img> <dest img> <sort type> [<tolerance/range>] [<iterations>]")
 	}
 	imgSrc := os.Args[1]
 	imgDest := os.Args[2]
@@ -119,13 +119,14 @@ func main() {
 	var err error
 	var sort_type int64
 	xyrange := 10
+	iterations := 10
 	if len(os.Args) >= 4 {
 		sort_type, err = strconv.ParseInt(os.Args[3], 0, 10)
 	}
 	if err != nil {
 		log.Panicln(err)
 	}
-	if len(os.Args) == 5 {
+	if len(os.Args) >= 5 {
 		if sort_type == 0 {
 			tol, err = strconv.ParseFloat(os.Args[4], 64)
 		} else if sort_type == 1 {
@@ -137,10 +138,18 @@ func main() {
 			xyrange = int(xy64)
 		}
 	}
-	iterations := 10
+	if len(os.Args) == 6 {
+		var iter64 int64
+		iter64, err = strconv.ParseInt(os.Args[5], 0, 10)
+		if err != nil {
+			log.Panicln(err)
+		}
+		iterations = int(iter64)
+	}
 	fmt.Println(sort_type)
 	fmt.Println(tol)
 	fmt.Println(xyrange)
+	fmt.Println(iterations)
 
 	//load image from file
 	//imgFile, err := os.Open(`D:\Users\Ross\Dropbox\Camera Uploads\2014-07-19 11.02.20.jpg`)
@@ -222,7 +231,7 @@ func main() {
 			case 5:
 				fmt.Print("|")
 				break
-			case default:
+			default:
 				fmt.Print(".")
 				break
 			}
