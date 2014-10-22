@@ -5,22 +5,22 @@ import (
 	"image"
 	_ "image/jpeg"
 	"image/png"
+	"log"
 	"math"
+	"os"
 	"runtime"
 	"sort"
-	"sync"
 	"strconv"
-	"log"
-	"os"
+	"sync"
 )
 
-type RGBASlice struct{
+type RGBASlice struct {
 	img *image.RGBA
-	X int
+	X   int
 }
 
 var (
-	tol = 0.1
+	tol   = 0.1
 	noise = 50
 )
 
@@ -28,10 +28,10 @@ func (img RGBASlice) Len() int {
 	pr, pg, pb, pa := img.img.At(img.X, img.img.Bounds().Min.Y).RGBA()
 	for y := img.img.Bounds().Min.Y + 1; y < img.img.Bounds().Max.Y; y++ {
 		r, g, b, a := img.img.At(img.X, y).RGBA()
-		rdiff := math.Abs(float64(pr) - float64(r)) / (float64(pr + r)/2)
-		gdiff := math.Abs(float64(pg) - float64(g)) / (float64(pg + g)/2)
-		bdiff := math.Abs(float64(pb) - float64(b)) / (float64(pb + b)/2)
-		adiff := math.Abs(float64(pa) - float64(a)) / (float64(pa + a)/2)
+		rdiff := math.Abs(float64(pr)-float64(r)) / (float64(pr+r) / 2)
+		gdiff := math.Abs(float64(pg)-float64(g)) / (float64(pg+g) / 2)
+		bdiff := math.Abs(float64(pb)-float64(b)) / (float64(pb+b) / 2)
+		adiff := math.Abs(float64(pa)-float64(a)) / (float64(pa+a) / 2)
 		/*fmt.Printf("%d %d\n", pr, r)
 		fmt.Printf("%f %f\n", math.Abs(float64(pr) - float64(r)), float64(pr + r)/2)
 		fmt.Printf("%d %d\n", pg, g)
@@ -40,7 +40,7 @@ func (img RGBASlice) Len() int {
 		fmt.Printf("%f %f %f %f\n", rdiff, bdiff, gdiff, adiff)*/
 		if rdiff >= tol || bdiff >= tol || gdiff >= tol || adiff >= tol {
 			if y != img.img.Bounds().Max.Y {
-				return y+1
+				return y + 1
 			}
 			return y
 		}
@@ -52,7 +52,7 @@ func (img RGBASlice) Len() int {
 func (img RGBASlice) Less(i, j int) bool {
 	ir, ig, ib, ia := img.img.At(img.X, i).RGBA()
 	jr, jg, jb, ja := img.img.At(img.X, j).RGBA()
-	return ir + ig + ib + ia > jr + jg + jb + ja
+	return ir+ig+ib+ia > jr+jg+jb+ja
 }
 
 func (img RGBASlice) Swap(i, j int) {
@@ -66,14 +66,14 @@ func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutex *sync.RW
 	r, g, b, a := img.At(x, y).RGBA()
 	mutex.RUnlock()
 	nearX, nearY, diff := 0, 0, int(math.MaxInt32)
-	for i := x; i < x + xrange; i++ {
-		for j := y; j < y + yrange; j++ {
+	for i := x; i < x+xrange; i++ {
+		for j := y; j < y+yrange; j++ {
 			if (image.Point{x, y}.In(img.Rect)) {
 				mutex.RLock()
 				nr, ng, nb, na := img.At(i, j).RGBA()
 				mutex.RUnlock()
-				newDiff := int(math.Abs(float64(nr - r)) + math.Abs(float64(nb - b)) +
-					math.Abs(float64(ng - g)) + math.Abs(float64(na - a)))
+				newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
+					math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
 				if newDiff < diff {
 					nearX = i
 					nearY = j
@@ -85,14 +85,14 @@ func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutex *sync.RW
 			}
 		}
 	}
-	for i := x-1; i > x - xrange; i-- {
-		for j := y-1; j > y - yrange; j-- {
+	for i := x - 1; i > x-xrange; i-- {
+		for j := y - 1; j > y-yrange; j-- {
 			if (image.Point{i, j}.In(img.Rect)) {
 				mutex.RLock()
 				nr, ng, nb, na := img.At(i, j).RGBA()
 				mutex.RUnlock()
-				newDiff := int(math.Abs(float64(nr - r)) + math.Abs(float64(nb - b)) +
-					math.Abs(float64(ng - g)) + math.Abs(float64(na - a)))
+				newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
+					math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
 				if newDiff < diff {
 					nearX = i
 					nearY = j
@@ -172,14 +172,14 @@ func main() {
 	case 1:
 		var wg sync.WaitGroup
 		var mutex sync.RWMutex
-		for i := 0; i < 10; i++{
+		for i := 0; i < 10; i++ {
 			wg.Add(newRGBA.Bounds().Max.X - newRGBA.Bounds().Min.X)
 			for x := newRGBA.Bounds().Min.X; x < newRGBA.Bounds().Max.X; x++ {
 				go func(newRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutex *sync.RWMutex) {
 					defer wg.Done()
 					for y := newRGBA.Bounds().Min.Y; y < newRGBA.Bounds().Max.Y; y++ {
 						newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA, mutex)
-						m := math.Abs(float64(newY - y))/math.Abs(float64(newX - x))
+						m := math.Abs(float64(newY-y)) / math.Abs(float64(newX-x))
 						var swapX, swapY int
 						if newX == x && newY == y {
 							swapX = x
@@ -194,7 +194,7 @@ func main() {
 							}
 						} else {
 							if newX < x {
-								swapX = x -1
+								swapX = x - 1
 								swapY = y
 							} else {
 								swapX = x + 1
@@ -211,7 +211,7 @@ func main() {
 						//fmt.Println(x, y, swapX, swapY)
 						//fmt.Println(newRGBA.At(swapX, swapY), newRGBA.At(x,y), "\n")
 					}
-				} (newRGBA, x, &wg, &mutex)
+				}(newRGBA, x, &wg, &mutex)
 			}
 			wg.Wait()
 		}
