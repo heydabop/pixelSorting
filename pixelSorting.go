@@ -63,45 +63,45 @@ func (img RGBASlice) Swap(i, j int) {
 	img.img.Set(img.X, j, temp)
 }
 
-func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutexes [][]sync.RWMutex) (int, int) {
+func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutexes [][]sync.RWMutex, localRand *rand.Rand) (int, int) {
 	mutexes[x][y].RLock()
 	r, g, b, a := img.At(x, y).RGBA()
 	mutexes[x][y].RUnlock()
 	nearX, nearY, diff := 0, 0, int(math.MaxInt32)
-	for i := x; i < x+xrange && i < len(mutexes); i++ {
-		for j := y; j < y+yrange && j < len(mutexes[i]); j++ {
-			if (image.Point{x, y}.In(img.Rect)) {
-				mutexes[i][j].RLock()
-				nr, ng, nb, na := img.At(i, j).RGBA()
-				mutexes[i][j].RUnlock()
-				newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
-					math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
-				if newDiff < diff {
-					nearX = i
-					nearY = j
-					diff = newDiff
-					if i == x && j == y {
-						diff += noise
-					}
-				}
-			}
-		}
+
+	iVals := localRand.Perm(xrange*2+1)
+	for k := 0; k < len(iVals); k++ {
+		iVals[k] += x - xrange
 	}
-	for i := x - 1; i > x-xrange && i >= 0; i-- {
-		for j := y - 1; j > y-yrange && j >= 0; j-- {
-			if (image.Point{i, j}.In(img.Rect)) {
-				mutexes[i][j].RLock()
-				nr, ng, nb, na := img.At(i, j).RGBA()
-				mutexes[i][j].RUnlock()
-				newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
-					math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
-				if newDiff < diff {
-					nearX = i
-					nearY = j
-					diff = newDiff
-					if i == x && j == y {
-						diff += noise
-					}
+
+	for iv := 0; iv < len(iVals); iv++ {
+		i := iVals[iv]
+		if i < 0 || i >= len(mutexes) {
+			continue
+		}
+
+		jVals := localRand.Perm(yrange*2+1)
+		for k := 0; k < len(jVals); k++ {
+			jVals[k] += y - yrange
+		}
+
+		for jv := 0; jv < len(jVals); jv++ {
+			j := jVals[jv]
+			if j < 0 || j >= len(mutexes[i]) {
+				continue
+			}
+
+			mutexes[i][j].RLock()
+			nr, ng, nb, na := img.At(i, j).RGBA()
+			mutexes[i][j].RUnlock()
+			newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
+				math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
+			if newDiff < diff {
+				nearX = i
+				nearY = j
+				diff = newDiff
+				if i == x && j == y {
+					diff += noise
 				}
 			}
 		}
@@ -194,11 +194,12 @@ func main() {
 			for i := 0; i < len(xVals); i++ {
 				x := xVals[i]
 				go func(newRGBA *image.RGBA, x int, wg *sync.WaitGroup, mutexes [][]sync.RWMutex) {
+					localRand := rand.New(rand.NewSource(time.Now().UnixNano()))
 					defer wg.Done()
-					yVals := rand.Perm(newRGBA.Bounds().Max.Y)
+					yVals := localRand.Perm(newRGBA.Bounds().Max.Y)
 					for j := 0; j < len(yVals); j++ {
 						y := yVals[j]
-						newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA, mutexes)
+						newX, newY := FindAlikeNeighbor(x, y, xyrange, xyrange, newRGBA, mutexes, localRand)
 						m := math.Abs(float64(newY-y)) / math.Abs(float64(newX-x))
 						var swapX, swapY int
 						if newX == x && newY == y {
