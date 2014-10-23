@@ -65,7 +65,7 @@ func (img RGBASlice) Swap(i, j int) {
 
 func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutexes [][]sync.RWMutex, localRand *rand.Rand) (int, int) {
 	mutexes[x][y].RLock()
-	r, g, b, a := img.At(x, y).RGBA()
+	r, g, b, _ := img.At(x, y).RGBA()
 	mutexes[x][y].RUnlock()
 	nearX, nearY, diff := 0, 0, int(math.MaxInt32)
 
@@ -92,10 +92,10 @@ func FindAlikeNeighbor(x, y, xrange, yrange int, img *image.RGBA, mutexes [][]sy
 			}
 
 			mutexes[i][j].RLock()
-			nr, ng, nb, na := img.At(i, j).RGBA()
+			nr, ng, nb, _ := img.At(i, j).RGBA()
 			mutexes[i][j].RUnlock()
 			newDiff := int(math.Abs(float64(nr-r)) + math.Abs(float64(nb-b)) +
-				math.Abs(float64(ng-g)) + math.Abs(float64(na-a)))
+				math.Abs(float64(ng-g)))
 			if newDiff < diff {
 				nearX = i
 				nearY = j
@@ -203,8 +203,7 @@ func main() {
 						m := math.Abs(float64(newY-y)) / math.Abs(float64(newX-x))
 						var swapX, swapY int
 						if newX == x && newY == y {
-							swapX = x
-							swapY = y
+							continue
 						} else if m > 1 {
 							if newY < y {
 								swapX = x
